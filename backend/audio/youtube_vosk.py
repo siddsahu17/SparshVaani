@@ -1,48 +1,82 @@
 import os
 import wave
 import json
+import io
+import requests
+import zipfile
 from vosk import Model, KaldiRecognizer
-from .youtube_audio_downloader import download_youtube_audio
+from .youtube_audio_stream import stream_youtube_audio
 
 # Define paths
-# Current dir: backend/audio
 AUDIO_DIR = os.path.dirname(__file__)
-# Model dir: backend/modules/model -> ../modules/model
-MODEL_DIR = os.path.join(AUDIO_DIR, "..", "modules", "model")
-OUTPUT_FILE = os.path.join(AUDIO_DIR, "vosk_output.txt")
+MODEL_BASE_DIR = os.path.join(AUDIO_DIR, "model")
+
+POSSIBLE_MODEL_DIRS = [
+    MODEL_BASE_DIR,
+    os.path.join(AUDIO_DIR, "models"),
+    os.path.join(AUDIO_DIR, "..", "modules", "model"),
+    os.path.join(AUDIO_DIR, "..", "model"),
+]
+
+VOSK_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+
+def download_vosk_model():
+    """Downloads and extracts the Vosk model to the model directory."""
+    print(f"Downloading Vosk model from {VOSK_MODEL_URL}...")
+    if not os.path.exists(MODEL_BASE_DIR):
+        os.makedirs(MODEL_BASE_DIR)
+        
+    try:
+        response = requests.get(VOSK_MODEL_URL)
+        response.raise_for_status()
+        
+        zip_path = os.path.join(MODEL_BASE_DIR, "model.zip")
+        with open(zip_path, "wb") as f:
+            f.write(response.content)
+            
+        print("Extracting model...")
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(MODEL_BASE_DIR)
+            
+        os.remove(zip_path)
+        print("Model downloaded and extracted successfully.")
+        return MODEL_BASE_DIR
+    except Exception as e:
+        raise RuntimeError(f"Failed to download Vosk model: {e}")
 
 def transcribe_with_vosk(youtube_url: str):
-    """
-    Downloads audio from YouTube and transcribes it using Vosk (offline).
-    Requires a Vosk model in 'backend/modules/model/'.
-    """
     try:
         # Step 1: Check Model
-        if not os.path.exists(MODEL_DIR) or not os.listdir(MODEL_DIR):
-             raise FileNotFoundError(f"Vosk model not found in {MODEL_DIR}. Please download a model (e.g., vosk-model-small-en-us-0.15) and extract it there.")
-
-        # Step 2: Download Audio
-        wav_path = download_youtube_audio(youtube_url)
+        model_dir = None
+        for d in POSSIBLE_MODEL_DIRS:
+            if os.path.exists(d) and os.listdir(d):
+                # Check if it has actual model files (conf/model.conf etc) directly or in subdir
+                model_dir = d
+                break
         
-        print(f"Loading Vosk model from: {MODEL_DIR}")
-        # Auto-detect model inside directory if it's a subdir
-        model_path = MODEL_DIR
-        # If the user extracted a folder inside 'model', use that
-        subdirs = [d for d in os.listdir(MODEL_DIR) if os.path.isdir(os.path.join(MODEL_DIR, d))]
+        if not model_dir:
+             print("Vosk model not found. Attempting to download...")
+             download_vosk_model()
+             model_dir = MODEL_BASE_DIR # Use the one we just created
+        
+        # Step 2: Stream Audio
+        audio_io = stream_youtube_audio(youtube_url)
+        
+        print(f"Loading Vosk model from: {model_dir}")
+        model_path = model_dir
+        subdirs = [d for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
         if subdirs:
-             model_path = os.path.join(MODEL_DIR, subdirs[0])
+            # Usually extracting zip creates a folder like 'vosk-model-small-en-us-0.15'
+             model_path = os.path.join(model_dir, subdirs[0])
              
         model = Model(model_path)
         
-        # Step 3: Open Audio
-        wf = wave.open(wav_path, "rb")
-        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
-            # Although downloader ensures 16k mono wav, double check
-             print("Audio file must be WAV format mono PCM.")
+        # Step 3: Open Audio from BytesIO
+        wf = wave.open(audio_io, "rb")
         
         rec = KaldiRecognizer(model, wf.getframerate())
         
-        print(f"Transcribing with Vosk: {wav_path}")
+        print(f"Transcribing with Vosk (In-Memory)...")
         
         results = []
         while True:
@@ -57,16 +91,6 @@ def transcribe_with_vosk(youtube_url: str):
         results.append(final_part.get("text", ""))
         
         full_text = " ".join([r for r in results if r])
-        
-        # Step 4: Save Output
-        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-            f.write(full_text)
-            
-        print(f"Transcription saved to: {OUTPUT_FILE}")
-        print("-" * 50)
-        print(full_text)
-        print("-" * 50)
-        
         return full_text
 
     except Exception as e:
