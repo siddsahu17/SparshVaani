@@ -10,14 +10,8 @@ backend_dir = os.path.dirname(current_dir) # .../backend
 env_path = os.path.join(backend_dir, ".env")
 load_dotenv(env_path)
 
-# Add project root to path to import backend modules
-# Assuming this file is at backend/streamlit/agent.py
-# We need to add the parent of backend (project root) or backend itself
-current_dir = os.path.dirname(os.path.abspath(__file__)) # .../backend/streamlit
-backend_dir = os.path.dirname(current_dir) # .../backend
-project_root = os.path.dirname(backend_dir) # .../Project
-
-sys.path.append(project_root)
+# Add parent directory to path to import backend modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 try:
     from backend.agents.agent_orchestrator import run_agent_workflow

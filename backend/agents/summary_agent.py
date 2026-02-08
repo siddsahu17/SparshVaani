@@ -1,14 +1,23 @@
-from openai import OpenAI
+
+
+import sys
+import os
+
+# Add parent directory to path to import backend modules if needed
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from backend.LLM.providers.base import LLMProvider
 
 # Agent 4: Summary Generation
-def generate_summary(transcript: str, context: dict) -> dict:
+def generate_summary(transcript: str, context: dict, llm_provider: LLMProvider = None) -> dict:
     """
     Generates a concise summary based on the transcript and context.
     """
     print(f"[SummaryAgent] Generating summary...")
     
-    client = OpenAI()
-    
+    if not llm_provider:
+        return {"summary": "Error: No LLM Provider", "error": "No LLM Provider provided"}
+
     # Use context to guide the summary
     topic = context.get("topic", "General")
     intent = context.get("intent", "General")
@@ -22,15 +31,13 @@ def generate_summary(transcript: str, context: dict) -> dict:
     """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are an expert summarizer. Return a single string summary."},
-                {"role": "user", "content": prompt}
-            ],
+        content = llm_provider.generate(
+            prompt=prompt,
+            system_message="You are an expert summarizer. Return a single string summary.",
             temperature=0.5
         )
-        return {"summary": response.choices[0].message.content.strip()}
+        return {"summary": content}
     except Exception as e:
         print(f"[SummaryAgent] Error: {e}")
         return {"summary": "Error generating summary.", "error": str(e)}
+

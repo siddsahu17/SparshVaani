@@ -1,14 +1,23 @@
 import json
-from openai import OpenAI
+
+
+import sys
+import os
+
+# Add parent directory to path to import backend modules if needed
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from backend.LLM.providers.base import LLMProvider
 
 # Agent 3: Context Understanding
-def analyze_context(transcript: str) -> dict:
+def analyze_context(transcript: str, llm_provider: LLMProvider = None) -> dict:
     """
     Analyzes the transcript to extract topic, subtopics, key concepts, and intent.
     """
     print(f"[ContextAgent] Analyzing context...")
     
-    client = OpenAI()
+    if not llm_provider:
+        return {"error": "No LLM provider provided."}
     
     if not transcript or len(transcript) < 50:
         return {"topic": "Unknown", "subtopics": [], "key_points": [], "intent": "Unknown"}
@@ -26,19 +35,19 @@ def analyze_context(transcript: str) -> dict:
     """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are an educational AI assistant. Output valid JSON only."},
-                {"role": "user", "content": prompt}
-            ],
+        content = llm_provider.generate(
+            prompt=prompt,
+            system_message="You are an educational AI assistant. Output valid JSON only.",
             temperature=0.3
         )
-        content = response.choices[0].message.content.strip()
+
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "")
+        if content.startswith("```"):
+            content = content.replace("```", "")
             
         return json.loads(content)
     except Exception as e:
         print(f"[ContextAgent] Error: {e}")
         return {"error": str(e)}
+
