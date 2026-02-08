@@ -1,0 +1,72 @@
+import os
+import subprocess
+import json
+from openai import OpenAI
+
+# Agent 1: Language Detection
+# derived from video metadata to avoid potentially long audio downloads just for detection
+
+def get_video_metadata(youtube_url: str):
+    """Fetches video title and description using yt-dlp."""
+    cmd = [
+        "yt-dlp",
+        "--dump-json",
+        "--skip-download",
+        "--no-warnings",
+        "--no-playlist",
+        youtube_url
+    ]
+    try:
+        output = subprocess.check_output(cmd).decode("utf-8")
+        data = json.loads(output)
+        return {
+            "title": data.get("title", ""),
+            "description": data.get("description", "")[:500] # Limit description length
+        }
+    except Exception as e:
+        print(f"Error fetching metadata: {e}")
+        return {"title": "", "description": ""}
+
+def detect_language(youtube_url: str) -> dict:
+    """
+    Detects the primary language of the YouTube video.
+    Returns: {"language": "en" | "hi" | "mr", "confidence": float}
+    """
+    print(f"[LanguageDetector] Analyzing: {youtube_url}")
+    
+    metadata = get_video_metadata(youtube_url)
+    text_sample = f"Title: {metadata['title']}\nDescription: {metadata['description']}"
+    
+    if not text_sample.strip():
+         return {"language": "en", "confidence": 0.0} # Fallback
+
+    client = OpenAI() # Assumes OPENAI_API_KEY is in env
+    
+    prompt = f"""
+    Analyze the following YouTube video metadata and detect the primary spoken language.
+    Return ONLY a JSON object with keys: "language" (one of: 'en', 'hi', 'mr', 'other') and "confidence" (0.0 to 1.0).
+    Default to 'en' if unsure.
+    
+    Metadata:
+    {text_sample}
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a language detection system. Output valid JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        content = response.choices[0].message.content.strip()
+        # Handle code blocks if present
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "")
+            
+        result = json.loads(content)
+        return result
+    except Exception as e:
+        print(f"[LanguageDetector] Error: {e}")
+        return {"language": "en", "confidence": 0.0}

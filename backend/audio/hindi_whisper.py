@@ -24,8 +24,8 @@ def transcribe_with_hindi_whisper(youtube_url: str):
         # Convert to float32
         audio_data = audio_data.astype(np.float32)
         
-        # Transcribe with language='hi'
-        result = model.transcribe(audio_data, language="hi")
+        # Transcribe with language='hi', force fp16=False for CPU
+        result = model.transcribe(audio_data, language="hi", fp16=False)
         text = result["text"]
         
         # Step 4: Save Output

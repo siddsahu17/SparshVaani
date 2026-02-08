@@ -13,3 +13,9 @@ vosk
 yt-dlp
 ffmpeg-python
 
+
+openai
+tiktoken
+streamlit
+python-dotenv
+reportlab

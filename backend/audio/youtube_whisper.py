@@ -26,8 +26,8 @@ def transcribe_with_whisper(youtube_url: str):
         # Convert to float32
         audio_data = audio_data.astype(np.float32)
         
-        # Transcribe
-        result = model.transcribe(audio_data)
+        # Transcribe, force fp16=False for CPU
+        result = model.transcribe(audio_data, fp16=False)
         text = result["text"]
         language = result.get("language", "unknown")
         

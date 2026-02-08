@@ -19,7 +19,10 @@ try:
     from audio import hindi_speech
     from audio import hindi_whisper
     from audio import hindi_vosk
-    # from audio import youtube_audio_stream # Optional debugging
+    from audio import marathi_speech
+    from audio import marathi_whisper
+    # Vosk has no Marathi model
+    # from audio import youtube_audio_stream
 except ImportError as e:
     st.error(f"Failed to import backend modules. Ensure directory structure is correct. Error: {e}")
     st.stop()
@@ -30,7 +33,7 @@ st.title("VIDEO TO AUDIO")
 st.markdown("Enter a YouTube URL to transcribe it using multiple engines.")
 
 # Language Selection
-language = st.radio("Select Language", ["English", "Hindi"], horizontal=True)
+language = st.radio("Select Language", ["English", "Hindi", "Marathi"], horizontal=True)
 
 youtube_url = st.text_input("YouTube URL", placeholder="https://www.youtube.com/watch?v=...")
 
@@ -53,8 +56,10 @@ if st.button("Transcribe All"):
                 try:
                     if language == "English":
                         text_google = youtube_speech.transcribe_with_speech_recognition(youtube_url)
-                    else:
+                    elif language == "Hindi":
                         text_google = hindi_speech.transcribe_with_hindi_speech_recognition(youtube_url)
+                    else: # Marathi
+                        text_google = marathi_speech.transcribe_with_marathi_speech_recognition(youtube_url)
                     st.text_area("Result", text_google, height=300)
                     st.success("Done!")
                 except Exception as e:
@@ -67,8 +72,10 @@ if st.button("Transcribe All"):
                 try:
                     if language == "English":
                         text_whisper = youtube_whisper.transcribe_with_whisper(youtube_url)
-                    else:
+                    elif language == "Hindi":
                         text_whisper = hindi_whisper.transcribe_with_hindi_whisper(youtube_url)
+                    else: # Marathi
+                        text_whisper = marathi_whisper.transcribe_with_marathi_whisper(youtube_url)
                     st.text_area("Result", text_whisper, height=300)
                     st.success("Done!")
                 except Exception as e:
@@ -81,8 +88,12 @@ if st.button("Transcribe All"):
                 try:
                     if language == "English":
                         text_vosk = youtube_vosk.transcribe_with_vosk(youtube_url)
-                    else:
+                    elif language == "Hindi":
                         text_vosk = hindi_vosk.transcribe_with_hindi_vosk(youtube_url)
+                    else:
+                        st.warning("Vosk transcription is not available for Marathi (no official model).")
+                        st.stop()
+                    
                     st.text_area("Result", text_vosk, height=300)
                     st.success("Done!")
                 except Exception as e:
